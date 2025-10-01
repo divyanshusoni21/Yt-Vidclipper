@@ -1,0 +1,17 @@
+boto3
+django
+djangorestframework
+djangorestframework-simplejwt
+django-filter
+django-extensions
+django-cors-headers
+djangorestframework-queryfields
+django-storages 
+gunicorn
+whitenoise
+python-dotenv
+psycopg2-binary
+Pillow
+pytz
+requests
+redis
