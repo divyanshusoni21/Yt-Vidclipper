@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'corsheaders',#cors setting
     'django_extensions',
+    'django_rq',
 
     "storages"
 ]
@@ -282,3 +283,47 @@ LOGGING = {
 }  
 import logging 
 logger = logging.getLogger('django')
+
+# Redis and Django-RQ Configuration
+REDIS_HOST = os.environ.get('REDIS_HOST', 'localhost')
+REDIS_PORT = os.environ.get('REDIS_PORT', 6379)
+REDIS_DB = os.environ.get('REDIS_DB', 0)
+
+RQ_QUEUES = {
+    'default': {
+        'HOST': REDIS_HOST,
+        'PORT': REDIS_PORT,
+        'DB': REDIS_DB,
+        'DEFAULT_TIMEOUT': 360,
+    },
+    'high': {
+        'HOST': REDIS_HOST,
+        'PORT': REDIS_PORT,
+        'DB': REDIS_DB,
+        'DEFAULT_TIMEOUT': 500,
+    },
+    'low': {
+        'HOST': REDIS_HOST,
+        'PORT': REDIS_PORT,
+        'DB': REDIS_DB,
+        'DEFAULT_TIMEOUT': 1000,
+    }
+}
+
+# File handling configuration for YouTube clipper
+CLIP_STORAGE_ROOT = os.path.join(MEDIA_ROOT, 'clips')
+TEMP_STORAGE_ROOT = os.path.join(MEDIA_ROOT, 'temp')
+
+# Ensure clip storage directories exist
+if not os.path.exists(CLIP_STORAGE_ROOT):
+    os.makedirs(CLIP_STORAGE_ROOT)
+    
+if not os.path.exists(TEMP_STORAGE_ROOT):
+    os.makedirs(TEMP_STORAGE_ROOT)
+
+# Maximum file size for clips (in bytes) - 500MB
+MAX_CLIP_FILE_SIZE = 500 * 1024 * 1024
+
+# Cleanup settings
+CLIP_RETENTION_HOURS = int(os.environ.get('CLIP_RETENTION_HOURS', 24))  # Keep clips for 24 hours by default
+TEMP_FILE_RETENTION_HOURS = int(os.environ.get('TEMP_FILE_RETENTION_HOURS', 1))  # Keep temp files for 1 hour
