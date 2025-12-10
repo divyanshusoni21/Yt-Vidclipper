@@ -3,6 +3,7 @@ from rest_framework import serializers
 from django.core.exceptions import ValidationError
 from utility.mixins import FieldMixin
 from .models import ClipRequest, ClipAnalytics
+from utility.functions import time_to_seconds
 
 
 class ClipRequestSerializer(FieldMixin, serializers.ModelSerializer):
@@ -38,32 +39,17 @@ class ClipRequestSerializer(FieldMixin, serializers.ModelSerializer):
         
         return value
     
-    def validate_start_time(self, value):
-        """
-        Validate start time is non-negative
-        """
-        if value < 0:
-            raise serializers.ValidationError(
-                "Start time must be non-negative."
-            )
-        return value
-    
-    def validate_end_time(self, value):
-        """
-        Validate end time is positive
-        """
-        if value <= 0:
-            raise serializers.ValidationError(
-                "End time must be positive."
-            )
-        return value
-    
+
     def validate(self, data):
         """
         Cross-field validation for timestamp ranges
         """
         start_time = data.get('start_time')
         end_time = data.get('end_time')
+
+        start_time = time_to_seconds(str(start_time))
+        end_time = time_to_seconds(str(end_time))
+        
         
         if start_time is not None and end_time is not None:
             if end_time <= start_time:
@@ -73,9 +59,10 @@ class ClipRequestSerializer(FieldMixin, serializers.ModelSerializer):
             
             # Check if clip duration is reasonable (not too short or too long)
             clip_duration = end_time - start_time
-            if clip_duration < 1:
+          
+            if clip_duration < 10:
                 raise serializers.ValidationError({
-                    'end_time': 'Clip duration must be at least 1 second.'
+                    'end_time': 'Clip duration must be at least 10 second.'
                 })
             
             # Maximum clip duration of 30 minutes (1800 seconds)
@@ -92,20 +79,20 @@ class ClipRequestSerializer(FieldMixin, serializers.ModelSerializer):
         """
         data = super().to_representation(instance)
         
-        # Add computed fields for API responses
-        if instance.start_time is not None and instance.end_time is not None:
-            data['clip_duration'] = instance.end_time - instance.start_time
+        # # Add computed fields for API responses
+        # if instance.start_time is not None and instance.end_time is not None:
+        #     data['clip_duration'] = instance.end_time - instance.start_time
         
-        # Format timestamps for display
-        if instance.start_time is not None:
-            data['start_time_formatted'] = self._format_seconds_to_time(instance.start_time)
+        # # Format timestamps for display
+        # if instance.start_time is not None:
+        #     data['start_time_formatted'] = self._format_seconds_to_time(instance.start_time)
         
-        if instance.end_time is not None:
-            data['end_time_formatted'] = self._format_seconds_to_time(instance.end_time)
+        # if instance.end_time is not None:
+        #     data['end_time_formatted'] = self._format_seconds_to_time(instance.end_time)
         
-        # Add download URL if file is ready
-        if instance.status == 'completed' and instance.file_path:
-            data['download_url'] = f'/api/clips/{instance.id}/download/'
+        # # Add download URL if file is ready
+        # if instance.status == 'completed' and instance.file_path:
+        #     data['download_url'] = f'/api/clips/{instance.id}/download/'
         
         return data
     

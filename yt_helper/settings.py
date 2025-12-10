@@ -86,7 +86,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'yt_helper.wsgi.application'
-
+AUTH_USER_MODEL = 'home.User'
 
 # Database
 # https://docs.djangoproject.com/en/4.0/ref/settings/#databases

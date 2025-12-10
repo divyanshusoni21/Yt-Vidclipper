@@ -3,34 +3,64 @@ from utility.mixins import UUIDMixin
 
 # Create your models here.
 
-class ClipRequest(UUIDMixin):
-    STATUS_CHOICES = [
+def clip_file_path(instance,fileName):
+    return f'clips/{instance.channel_name}/{fileName}'
+
+from django.db import models
+from django.contrib.auth.models import AbstractUser
+from utility.mixins import UUIDMixin
+from rest_framework_simplejwt.tokens import RefreshToken
+
+STATUS_CHOICES = [
         ('pending', 'Pending'),
-        ('processing', 'Processing'),
         ('completed', 'Completed'),
         ('failed', 'Failed'),
     ]
+
+class User(AbstractUser, UUIDMixin):
+    """Custom User model extending Django's AbstractUser"""
+    email = models.EmailField(unique=True)
+    username = models.CharField(max_length=150,blank=True)
+    is_verified = models.BooleanField(default=False)
+    phone = models.BigIntegerField(null=True,blank=True)
     
-    PROCESSING_METHOD_CHOICES = [
-        ('download_and_clip', 'Download Full Video and Clip'),
-        ('download_sections', 'Download Specific Sections'),
-        ('ffmpeg_stream', 'FFmpeg Stream Processing'),
-    ]
+    USERNAME_FIELD = 'email'
+    REQUIRED_FIELDS = ['username']
     
+    def __str__(self):
+        return self.email 
+    
+
+    def tokens(self):
+        refresh = RefreshToken.for_user(self)
+
+        accessToken = refresh.access_token
+       
+        return {
+            'refresh': str(refresh),
+            'access': str(accessToken)
+        }
+
+class ClipRequest(UUIDMixin):
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE,null=True,blank=True)
     youtube_url = models.URLField()
-    start_time = models.IntegerField()  # in seconds
-    end_time = models.IntegerField()    # in seconds
+    start_time = models.TimeField()  
+    end_time = models.TimeField()    
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     processed_at = models.DateTimeField(null=True, blank=True)
-    file_path = models.CharField(max_length=500, null=True, blank=True)
-    error_message = models.TextField(null=True, blank=True)
+    clip_720p = models.FileField(upload_to=clip_file_path, null=True, blank=True)
+    clip_480p = models.FileField(upload_to=clip_file_path, null=True, blank=True)
     original_title = models.CharField(max_length=200, null=True, blank=True)
-    file_size = models.BigIntegerField(null=True, blank=True)
-    video_duration = models.IntegerField(null=True, blank=True)  # total video duration in seconds
+    clip_720p_size = models.BigIntegerField(null=True, blank=True,help_text="clip size in mb")
+    clip_480p_size = models.BigIntegerField(null=True, blank=True,help_text="clip size in mb")
+    clip_duration = models.IntegerField(null=True, blank=True)  # total video duration in seconds
     channel_name = models.CharField(max_length=200, null=True, blank=True)
     channel_id = models.CharField(max_length=100, null=True, blank=True)
-    processing_method = models.CharField(max_length=30, choices=PROCESSING_METHOD_CHOICES, null=True, blank=True)
+    error_message = models.TextField(null=True, blank=True)
+    total_time_taken = models.IntegerField(null=True, blank=True)
     processing_log = models.JSONField(default=dict, blank=True)  # Stores detailed processing steps and errors
+    rq_job_id = models.CharField(max_length=255, null=True, blank=True)
     
     class Meta:
         db_table = 'clip_request'
