@@ -8,13 +8,11 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
-from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework.filters import SearchFilter, OrderingFilter
 
 from .models import ClipRequest,STATUS_CHOICES
 from .tasks import get_task_status
 from .serializers import ClipRequestSerializer
-from .services import VideoInfoService, HybridProcessingService
+from .services import ClipProcessingService
 
 from utility.functions import runSerializer
 import django_rq
@@ -30,9 +28,6 @@ class ClipRequestViewSet(viewsets.ModelViewSet):
     """
     queryset = ClipRequest.objects.all()
     serializer_class = ClipRequestSerializer
-
-
-
 
     def get_serializer_context(self):
         """
@@ -55,19 +50,14 @@ class ClipRequestViewSet(viewsets.ModelViewSet):
             logger.info(f"Creating new clip request with data: {request.data}")
             
             youtubeUrl = request.data.get('youtube_url')
-            startTime = request.data.get('start_time')
-            endTime = request.data.get('end_time')
 
             # Validate YouTube URL and get video info
-            isValidYoutubeUrl = VideoInfoService().validateYoutubeUrl(youtubeUrl)
+            clipProcessingService = ClipProcessingService()
+            isValidYoutubeUrl = clipProcessingService.validate_youtube_url(youtubeUrl)
 
             if not isValidYoutubeUrl:
                 raise Exception(f"Invalid YouTube URL: {youtubeUrl}")
-
-            # TODO # Validate timestamp range against video duration
-            # if clipRequest.end_time > videoInfo.get('duration', 0):
-            #     raise Exception(f"End time {clipRequest.end_time} exceeds video duration {videoInfo.get('duration', 0)}")
-            
+        
             # create clip request
             clipRequest, serializer = runSerializer(
                 ClipRequestSerializer, 
@@ -77,9 +67,9 @@ class ClipRequestViewSet(viewsets.ModelViewSet):
             
             try:
                 
-                # Queue background processing task
+                # TODO: Queue background processing task
                 # queue = django_rq.get_queue('default')
-                # rqJob = queue.enqueue(HybridProcessingService().process_clip_request, clipRequest)
+                # rqJob = queue.enqueue(clipProcessingService.process_clip_request, clipRequest)
                 
                 # jobId = rqJob.id
                 # logger.info(f"Queued background processing for clip request {clipRequest.id}, job ID: {jobId}")
@@ -88,7 +78,7 @@ class ClipRequestViewSet(viewsets.ModelViewSet):
                 # clipRequest.rq_job_id = jobId
                 # clipRequest.save(update_fields=['rq_job_id'])
 
-                thread = Thread(target=HybridProcessingService().process_clip_request, args=(clipRequest,))
+                thread = Thread(target=clipProcessingService.process_clip_request, args=(clipRequest,))
                 thread.start()
                 responseData = ClipRequestSerializer(clipRequest,context={'request': request}).data
                 
@@ -219,18 +209,7 @@ class DownloadClipViewSet(viewsets.ViewSet):
                 response['Access-Control-Expose-Headers'] = 'Content-Disposition'
                 
                 logger.info(f"Successfully serving file {filename} for clip {pk}")
-                
-                # TODO: Uncomment when ready for analytics
-                # Record download in analytics if available
-                # try:
-                #     analytics = clipRequest.analytics.first()
-                #     if analytics:
-                #         analytics.download_count = getattr(analytics, 'download_count', 0) + 1
-                #         analytics.last_downloaded_at = timezone.now()
-                #         analytics.save(update_fields=['download_count', 'last_downloaded_at'])
-                # except Exception as analytics_error:
-                #     logger.warning(f"Failed to record download analytics: {str(analytics_error)}")
-                
+                       
                 return response
                 
             except IOError as e:

@@ -35,43 +35,7 @@ class ProcessingFailedException(Exception):
 class VideoInfoService:
     """Service class for handling YouTube video information extraction."""
     
-    # YouTube URL patterns for validation
-    YOUTUBE_URL_PATTERNS = [
-        r'(?:https?://)?(?:www\.)?youtube\.com/watch\?v=([a-zA-Z0-9_-]{11})',
-        r'(?:https?://)?(?:www\.)?youtu\.be/([a-zA-Z0-9_-]{11})',
-        r'(?:https?://)?(?:www\.)?youtube\.com/embed/([a-zA-Z0-9_-]{11})',
-        r'(?:https?://)?(?:www\.)?youtube\.com/v/([a-zA-Z0-9_-]{11})',
-    ]
-    
-    def __init__(self):
-        """Initialize the VideoInfoService with yt-dlp options."""
-        self.ydl_opts = {
-            'quiet': True,
-            'no_warnings': True,
-            'extract_flat': False,
-            'skip_download': True,
-        }
 
-    def validateYoutubeUrl(self,url: str) -> bool:
-        """
-        Validate if the provided URL is a valid YouTube URL.
-        
-        Args:
-            url (str): The YouTube URL to validate
-            
-        Returns:
-            bool: True if valid YouTube URL, False otherwise
-        """
-        if not url or not isinstance(url, str):
-            return False
-            
-        # Check against all YouTube URL patterns
-        for pattern in self.YOUTUBE_URL_PATTERNS:
-            if re.match(pattern, url.strip()):
-                return True
-                
-        return False
-    
     def getVideoInfo(self, url: str, ydlOpts: Dict[str, Any]=None) -> Dict[str, Any]:
         """
         Extract comprehensive video information using yt-dlp.
@@ -135,17 +99,44 @@ class VideoInfoService:
             raise VideoNotAvailableException(f"Failed to extract video information: {str(e)}")
     
 
-class HybridProcessingService:
+class ClipProcessingService:
     """Service class for processing video clips using hybrid methods."""
     
     # 10-minute threshold for processing method selection (in seconds)
     DURATION_THRESHOLD = 600
+
+        # YouTube URL patterns for validation
+    YOUTUBE_URL_PATTERNS = [
+        r'(?:https?://)?(?:www\.)?youtube\.com/watch\?v=([a-zA-Z0-9_-]{11})',
+        r'(?:https?://)?(?:www\.)?youtu\.be/([a-zA-Z0-9_-]{11})',
+        r'(?:https?://)?(?:www\.)?youtube\.com/embed/([a-zA-Z0-9_-]{11})',
+        r'(?:https?://)?(?:www\.)?youtube\.com/v/([a-zA-Z0-9_-]{11})',
+    ]
+    
+    def validate_youtube_url(self,url: str) -> bool:
+        """
+        Validate if the provided URL is a valid YouTube URL.
+        
+        Args:
+            url (str): The YouTube URL to validate
+            
+        Returns:
+            bool: True if valid YouTube URL, False otherwise
+        """
+        if not url or not isinstance(url, str):
+            return False
+            
+        # Check against all YouTube URL patterns
+        for pattern in self.YOUTUBE_URL_PATTERNS:
+            if re.match(pattern, url.strip()):
+                return True
+                
+        return False
+    
     
     def __init__(self):
         """Initialize the HybridProcessingService."""
         self.videoInfoService = VideoInfoService()
-        
-        # Base yt-dlp options
         self.base_ydl_opts = {
             'quiet': True,
             'no_warnings': True,
@@ -207,7 +198,6 @@ class HybridProcessingService:
             # so as of now a quick fix
             if startSec == 0 :
                 startSec = 1
-
           
             # Use FFmpeg to seek and download only the required segment
             ffmpegCmd720p = [
@@ -287,13 +277,9 @@ class HybridProcessingService:
                     timeout=300  # 5 minute timeout
                 )
             except subprocess.TimeoutExpired as e:
-                errorMsg = f"FFmpeg 480p processing timed out after 300 seconds"
-                logger.error(errorMsg)
-                raise ProcessingFailedException(errorMsg)
+                raise ProcessingFailedException("FFmpeg 480p processing timed out after 300 seconds")
             except subprocess.CalledProcessError as e:
-                errorMsg = f"FFmpeg 480p processing failed: {e.stderr if e.stderr else str(e)}"
-                logger.error(errorMsg)
-                raise ProcessingFailedException(errorMsg)
+                raise ProcessingFailedException(f"FFmpeg 480p processing failed: {e.stderr if e.stderr else str(e)}")
             
             # Verify output file exists and has content
             if not os.path.exists(out480pPathAbsolute) or os.path.getsize(out480pPathAbsolute) == 0:
@@ -306,8 +292,7 @@ class HybridProcessingService:
                 'info',
                 {'message': f'Time taken to generate 480p clip: {t4 - t3}s'}
             )
-          
-            
+             
             # Update clip request with file info
             clipRequest.clip_720p = out720pPathRelative
             clipRequest.clip_480p = out480pPathRelative
@@ -359,17 +344,27 @@ class HybridProcessingService:
 
                 if not videoInfo or 'url' not in videoInfo:
                     raise ProcessingFailedException("Could not extract streaming URL")
+                
+                # Check if end time is greater than video duration
 
+                duration = videoInfo.get('duration',0)
+                endSec = time_to_seconds(str(clipRequest.end_time))
+                if endSec > duration:
+                    # set end time to video duration
+                    endSec = videoInfo.get('duration_string')
+                    clipRequest.end_time = endSec
+                    
+                
                 directStreamUrl = videoInfo.get('url')
-
                 clipRequest.original_title = videoInfo.get('title')
                 clipRequest.channel_name = videoInfo.get('channel')
                 clipRequest.channel_id = videoInfo.get('channel_id')
-                clipRequest.save(update_fields=['original_title', 'channel_name', 'channel_id'])
+                clipRequest.clip_duration = videoInfo.get('duration')
+
+                clipRequest.save(update_fields=['original_title', 'channel_name', 'channel_id', 'clip_duration','end_time'])
             
             t2 = time()
 
-    
             self.log_processing_step(
                 clipRequest,
                 'get_video_info',
@@ -403,7 +398,8 @@ class HybridProcessingService:
             
             clipRequest.total_time_taken = t3 - t1
             clipRequest.save(update_fields=['status', 'processed_at', 'total_time_taken'])
-            return success       
+            return success
+
         except Exception as e:
             logger.error(traceback.format_exc())
             clipRequest.status = STATUS_CHOICES[2][0] # failed
@@ -691,406 +687,3 @@ class HybridProcessingService:
             logger.error(f"Failed to log processing step for request {clipRequest.id}: {str(e)}")
 
 
-# TODO: Uncomment when ready to implement analytics
-# class AnalyticsService:
-    # """Service class for comprehensive tracking and analytics."""
-    
-    # def __init__(self):
-    #     """Initialize the AnalyticsService."""
-    #     self.video_info_service = VideoInfoService()
-    
-    # def recordClipRequest(self, clipRequest, userInfo: dict = None) -> 'ClipAnalytics':
-    #     """
-    #     Create analytics entry for a new clip request.
-        
-    #     Args:
-    #         clipRequest: ClipRequest model instance
-    #         userInfo (dict): Dictionary containing user information (IP, user agent, referrer)
-            
-    #     Returns:
-    #         ClipAnalytics: Created analytics instance
-    #     """
-    #     try:
-    #         # Import here to avoid circular imports
-    #         from .models import ClipAnalytics
-            
-    #         # Extract video ID from URL
-    #         video_id = self.video_info_service.extractVideoId(clipRequest.youtube_url)
-            
-    #         # Calculate clip duration and percentage
-    #         clip_duration = clipRequest.end_time - clipRequest.start_time
-    #         clip_percentage = 0.0
-    #         if clipRequest.video_duration and clipRequest.video_duration > 0:
-    #             clip_percentage = (clip_duration / clipRequest.video_duration) * 100
-            
-    #         # Get system performance metrics
-    #         system_metrics = self._getSystemMetrics()
-            
-    #         # Create analytics entry
-    #         analytics = ClipAnalytics.objects.create(
-    #             clip_request=clipRequest,
-    #             video_id=video_id,
-    #             video_duration=clipRequest.video_duration or 0,
-    #             clip_duration=clip_duration,
-    #             clip_percentage=clip_percentage,
-    #             processing_method=clipRequest.processing_method or 'unknown',
-    #             channel_name=clipRequest.channel_name,
-    #             channel_id=clipRequest.channel_id,
-    #             user_ip=userInfo.get('ip') if userInfo else None,
-    #             user_agent=userInfo.get('user_agent') if userInfo else None,
-    #             referrer=userInfo.get('referrer') if userInfo else None,
-    #             server_load=system_metrics.get('server_load'),
-    #             memory_usage=system_metrics.get('memory_usage'),
-    #             success=False,  # Will be updated when processing completes
-    #             retry_count=0
-    #         )
-            
-    #         logger.info(f"Created analytics entry {analytics.id} for clip request {clipRequest.id}")
-    #         return analytics
-            
-    #     except Exception as e:
-    #         logger.error(f"Failed to create analytics entry for clip request {clipRequest.id}: {str(e)}")
-    #         # Return None if analytics creation fails - don't block the main process
-    #         return None
-    
-    # def updateProcessingMetrics(self, analytics: 'ClipAnalytics', processingDat dict) -> None:
-    #     """
-    #     Update processing metrics for an analytics entry.
-        
-    #     Args:
-    #         analytics: ClipAnalytics model instance
-    #         processingData (dict): Dictionary containing processing metrics
-    #     """
-    #     try:
-    #         if not analytics:
-    #             return
-            
-    #         # Update processing metrics
-    #         if 'processing_time' in processingData:
-    #             analytics.processing_time = processingData['processing_time']
-            
-    #         if 'download_size' in processingData:
-    #             analytics.download_size = processingData['download_size']
-            
-    #         if 'processing_method' in processingData:
-    #             analytics.processing_method = processingData['processing_method']
-            
-    #         if 'retry_count' in processingData:
-    #             analytics.retry_count = processingData['retry_count']
-            
-    #         # Update system metrics
-    #         system_metrics = self._getSystemMetrics()
-    #         analytics.server_load = system_metrics.get('server_load')
-    #         analytics.memory_usage = system_metrics.get('memory_usage')
-            
-    #         analytics.save()
-            
-    #         logger.info(f"Updated processing metrics for analytics {analytics.id}")
-            
-    #     except Exception as e:
-    #         logger.error(f"Failed to update processing metrics for analytics {analytics.id if analytics else 'None'}: {str(e)}")
-    
-    # def recordSuccess(self, analytics: 'ClipAnalytics', finalFileSize: int) -> None:
-    #     """
-    #     Record successful completion of clip processing.
-        
-    #     Args:
-    #         analytics: ClipAnalytics model instance
-    #         finalFileSize (int): Size of the final clip file in bytes
-    #     """
-    #     try:
-    #         if not analytics:
-    #             return
-            
-    #         analytics.success = True
-    #         analytics.final_file_size = finalFileSize
-    #         analytics.error_type = None  # Clear any previous error
-            
-    #         # Update system metrics one final time
-    #         system_metrics = self._getSystemMetrics()
-    #         analytics.server_load = system_metrics.get('server_load')
-    #         analytics.memory_usage = system_metrics.get('memory_usage')
-            
-    #         analytics.save()
-            
-    #         logger.info(f"Recorded success for analytics {analytics.id} - file size: {finalFileSize} bytes")
-            
-    #     except Exception as e:
-    #         logger.error(f"Failed to record success for analytics {analytics.id if analytics else 'None'}: {str(e)}")
-    
-    # def recordFailure(self, analytics: 'ClipAnalytics', errorType: str) -> None:
-    #     """
-    #     Record failure of clip processing.
-        
-    #     Args:
-    #         analytics: ClipAnalytics model instance
-    #         errorType (str): Type/category of the error
-    #     """
-    #     try:
-    #         if not analytics:
-    #             return
-            
-    #         analytics.success = False
-    #         analytics.error_type = errorType
-            
-    #         # Update system metrics
-    #         system_metrics = self._getSystemMetrics()
-    #         analytics.server_load = system_metrics.get('server_load')
-    #         analytics.memory_usage = system_metrics.get('memory_usage')
-            
-    #         analytics.save()
-            
-    #         logger.info(f"Recorded failure for analytics {analytics.id} - error type: {errorType}")
-            
-    #     except Exception as e:
-    #         logger.error(f"Failed to record failure for analytics {analytics.id if analytics else 'None'}: {str(e)}")
-    
-    # def getPopularChannels(self, days: int = 30) -> list:
-    #     """
-    #     Get list of popular channels based on clip requests.
-        
-    #     Args:
-    #         days (int): Number of days to look back (default: 30)
-            
-    #     Returns:
-    #         list: List of dictionaries containing channel information and stats
-    #     """
-    #     try:
-    #         from .models import ClipAnalytics
-    #         from django.db.models import Count, Avg, Sum
-    #         from datetime import timedelta
-            
-    #         # Calculate date threshold
-    #         date_threshold = timezone.now() - timedelta(days=days)
-            
-    #         # Query popular channels
-    #         popular_channels = ClipAnalytics.objects.filter(
-    #             created_at__gte=date_threshold,
-    #             channel_id__isnull=False
-    #         ).values(
-    #             'channel_id', 'channel_name'
-    #         ).annotate(
-    #             request_count=Count('id'),
-    #             success_count=Count('id', filter=models.Q(success=True)),
-    #             avg_processing_time=Avg('processing_time'),
-    #             total_clip_duration=Sum('clip_duration'),
-    #             avg_clip_percentage=Avg('clip_percentage')
-    #         ).order_by('-request_count')[:20]  # Top 20 channels
-            
-    #         # Calculate success rate for each channel
-    #         result = []
-    #         for channel in popular_channels:
-    #             success_rate = 0.0
-    #             if channel['request_count'] > 0:
-    #                 success_rate = (channel['success_count'] / channel['request_count']) * 100
-                
-    #             result.append({
-    #                 'channel_id': channel['channel_id'],
-    #                 'channel_name': channel['channel_name'],
-    #                 'request_count': channel['request_count'],
-    #                 'success_count': channel['success_count'],
-    #                 'success_rate': round(success_rate, 2),
-    #                 'avg_processing_time': round(channel['avg_processing_time'] or 0, 2),
-    #                 'total_clip_duration': channel['total_clip_duration'] or 0,
-    #                 'avg_clip_percentage': round(channel['avg_clip_percentage'] or 0, 2)
-    #             })
-            
-    #         logger.info(f"Retrieved {len(result)} popular channels for last {days} days")
-    #         return result
-            
-    #     except Exception as e:
-    #         logger.error(f"Failed to get popular channels: {str(e)}")
-    #         return []
-    
-    # def getProcessingMethodStats(self) -> dict:
-    #     """
-    #     Get statistics about processing method effectiveness.
-        
-    #     Returns:
-    #         dict: Dictionary containing processing method statistics
-    #     """
-    #     try:
-    #         from .models import ClipAnalytics
-    #         from django.db.models import Count, Avg, Q
-            
-    #         # Get stats for each processing method
-    #         method_stats = ClipAnalytics.objects.values('processing_method').annotate(
-    #             total_requests=Count('id'),
-    #             successful_requests=Count('id', filter=Q(success=True)),
-    #             avg_processing_time=Avg('processing_time'),
-    #             avg_file_size=Avg('final_file_size'),
-    #             avg_download_size=Avg('download_size')
-    #         ).order_by('processing_method')
-            
-    #         # Calculate success rates and format results
-    #         result = {
-    #             'methods': {},
-    #             'overall': {
-    #                 'total_requests': 0,
-    #                 'successful_requests': 0,
-    #                 'overall_success_rate': 0.0
-    #             }
-    #         }
-            
-    #         total_requests = 0
-    #         total_successful = 0
-            
-    #         for method in method_stats:
-    #             method_name = method['processing_method']
-    #             requests = method['total_requests']
-    #             successful = method['successful_requests']
-    #             success_rate = (successful / requests * 100) if requests > 0 else 0.0
-                
-    #             result['methods'][method_name] = {
-    #                 'total_requests': requests,
-    #                 'successful_requests': successful,
-    #                 'success_rate': round(success_rate, 2),
-    #                 'avg_processing_time': round(method['avg_processing_time'] or 0, 2),
-    #                 'avg_file_size': method['avg_file_size'] or 0,
-    #                 'avg_download_size': method['avg_download_size'] or 0
-    #             }
-                
-    #             total_requests += requests
-    #             total_successful += successful
-            
-    #         # Calculate overall stats
-    #         result['overall']['total_requests'] = total_requests
-    #         result['overall']['successful_requests'] = total_successful
-    #         result['overall']['overall_success_rate'] = round(
-    #             (total_successful / total_requests * 100) if total_requests > 0 else 0.0, 2
-    #         )
-            
-    #         logger.info(f"Retrieved processing method stats: {total_requests} total requests")
-    #         return result
-            
-    #     except Exception as e:
-    #         logger.error(f"Failed to get processing method stats: {str(e)}")
-    #         return {
-    #             'methods': {},
-    #             'overall': {
-    #                 'total_requests': 0,
-    #                 'successful_requests': 0,
-    #                 'overall_success_rate': 0.0
-    #             }
-    #         }
-    
-    # def getUsageStatistics(self, days: int = 30) -> dict:
-    #     """
-    #     Get comprehensive usage statistics.
-        
-    #     Args:
-    #         days (int): Number of days to look back (default: 30)
-            
-    #     Returns:
-    #         dict: Dictionary containing usage statistics
-    #     """
-    #     try:
-    #         from .models import ClipAnalytics
-    #         from django.db.models import Count, Avg, Sum, Min, Max
-    #         from datetime import timedelta
-            
-    #         # Calculate date threshold
-    #         date_threshold = timezone.now() - timedelta(days=days)
-            
-    #         # Get basic statistics
-    #         stats = ClipAnalytics.objects.filter(created_at__gte=date_threshold).aggregate(
-    #             total_requests=Count('id'),
-    #             successful_requests=Count('id', filter=models.Q(success=True)),
-    #             avg_processing_time=Avg('processing_time'),
-    #             total_clip_duration=Sum('clip_duration'),
-    #             avg_clip_duration=Avg('clip_duration'),
-    #             avg_clip_percentage=Avg('clip_percentage'),
-    #             total_download_size=Sum('download_size'),
-    #             avg_download_size=Avg('download_size'),
-    #             total_file_size=Sum('final_file_size'),
-    #             avg_file_size=Avg('final_file_size'),
-    #             min_processing_time=Min('processing_time'),
-    #             max_processing_time=Max('processing_time')
-    #         )
-            
-    #         # Calculate success rate
-    #         success_rate = 0.0
-    #         if stats['total_requests'] and stats['total_requests'] > 0:
-    #             success_rate = (stats['successful_requests'] / stats['total_requests']) * 100
-            
-    #         # Get unique channels and videos
-    #         unique_stats = ClipAnalytics.objects.filter(created_at__gte=date_threshold).aggregate(
-    #             unique_channels=Count('channel_id', distinct=True),
-    #             unique_videos=Count('video_id', distinct=True)
-    #         )
-            
-    #         result = {
-    #             'period_days': days,
-    #             'total_requests': stats['total_requests'] or 0,
-    #             'successful_requests': stats['successful_requests'] or 0,
-    #             'success_rate': round(success_rate, 2),
-    #             'unique_channels': unique_stats['unique_channels'] or 0,
-    #             'unique_videos': unique_stats['unique_videos'] or 0,
-    #             'processing_time': {
-    #                 'average': round(stats['avg_processing_time'] or 0, 2),
-    #                 'minimum': round(stats['min_processing_time'] or 0, 2),
-    #                 'maximum': round(stats['max_processing_time'] or 0, 2)
-    #             },
-    #             'clip_duration': {
-    #                 'total_seconds': stats['total_clip_duration'] or 0,
-    #                 'average_seconds': round(stats['avg_clip_duration'] or 0, 2),
-    #                 'average_percentage': round(stats['avg_clip_percentage'] or 0, 2)
-    #             },
-    #             'data_usage': {
-    #                 'total_download_bytes': stats['total_download_size'] or 0,
-    #                 'average_download_bytes': stats['avg_download_size'] or 0,
-    #                 'total_output_bytes': stats['total_file_size'] or 0,
-    #                 'average_output_bytes': stats['avg_file_size'] or 0
-    #             }
-    #         }
-            
-    #         logger.info(f"Retrieved usage statistics for last {days} days: {result['total_requests']} requests")
-    #         return result
-            
-    #     except Exception as e:
-    #         logger.error(f"Failed to get usage statistics: {str(e)}")
-    #         return {
-    #             'period_days': days,
-    #             'total_requests': 0,
-    #             'successful_requests': 0,
-    #             'success_rate': 0.0,
-    #             'unique_channels': 0,
-    #             'unique_videos': 0,
-    #             'processing_time': {'average': 0, 'minimum': 0, 'maximum': 0},
-    #             'clip_duration': {'total_seconds': 0, 'average_seconds': 0, 'average_percentage': 0},
-    #             'data_usage': {'total_download_bytes': 0, 'average_download_bytes': 0, 'total_output_bytes': 0, 'average_output_bytes': 0}
-    #         }
-    
-    # def _getSystemMetrics(self) -> dict:
-    #     """
-    #     Get current system performance metrics.
-        
-    #     Returns:
-    #         dict: Dictionary containing system metrics
-    #     """
-    #     try:
-    #         import psutil
-            
-    #         # Get CPU and memory usage
-    #         cpu_percent = psutil.cpu_percent(interval=1)
-    #         memory = psutil.virtual_memory()
-    #         memory_usage_mb = memory.used / (1024 * 1024)  # Convert to MB
-            
-    #         return {
-    #             'server_load': cpu_percent,
-    #             'memory_usage': memory_usage_mb
-    #         }
-            
-    #     except ImportError:
-    #         # psutil not available, return None values
-    #         logger.warning("psutil not available for system metrics")
-    #         return {
-    #             'server_load': None,
-    #             'memory_usage': None
-    #         }
-    #     except Exception as e:
-    #         logger.error(f"Failed to get system metrics: {str(e)}")
-    #         return {
-    #             'server_load': None,
-    #             'memory_usage': None
-    #         }
