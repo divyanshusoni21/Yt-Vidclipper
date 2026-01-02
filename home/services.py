@@ -8,7 +8,7 @@ from typing import Dict, Any
 from django.conf import settings
 from django.utils import timezone
 
-from .models import STATUS_CHOICES, VideoDetail, Clip
+from .models import STATUS_CHOICES, VideoDetail
 from .serializers import VideoDetailSerializer, ClipSerializer
 import shutil
 from time import time
@@ -102,21 +102,25 @@ class VideoInfoService:
 
 class ClipProcessingService:
     """Service class for processing video clips using hybrid methods."""
-    
-    # 10-minute threshold for processing method selection (in seconds)
-    DURATION_THRESHOLD = 600
 
-        # YouTube URL patterns for validation
+    def __init__(self):
+
+        # Ensure ffmpeg is installed
+        self._check_ffmpeg()
+    
+
+    # YouTube URL patterns for validation, including /live/ URLs
     YOUTUBE_URL_PATTERNS = [
         r'(?:https?://)?(?:www\.)?youtube\.com/watch\?v=([a-zA-Z0-9_-]{11})',
         r'(?:https?://)?(?:www\.)?youtu\.be/([a-zA-Z0-9_-]{11})',
         r'(?:https?://)?(?:www\.)?youtube\.com/embed/([a-zA-Z0-9_-]{11})',
         r'(?:https?://)?(?:www\.)?youtube\.com/v/([a-zA-Z0-9_-]{11})',
+        r'(?:https?://)?(?:www\.)?youtube\.com/live/([a-zA-Z0-9_-]{11})(?:\?.*)?'
     ]
     
-    def validate_youtube_url(self,url: str) -> bool:
+    def validate_youtube_url(self, url: str) -> bool:
         """
-        Validate if the provided URL is a valid YouTube URL.
+        Validate if the provided URL is a valid YouTube URL
         
         Args:
             url (str): The YouTube URL to validate
@@ -126,26 +130,13 @@ class ClipProcessingService:
         """
         if not url or not isinstance(url, str):
             return False
-            
+
         # Check against all YouTube URL patterns
         for pattern in self.YOUTUBE_URL_PATTERNS:
             if re.match(pattern, url.strip()):
                 return True
-                
+
         return False
-    
-    
-    def __init__(self):
-        """Initialize the HybridProcessingService."""
-        self.videoInfoService = VideoInfoService()
-        self.base_ydl_opts = {
-            'quiet': True,
-            'no_warnings': True,
-            'extract_flat': False,
-        }
-        
-        # Ensure ffmpeg is installed
-        self._check_ffmpeg()
     
     
     def _check_ffmpeg(self):
@@ -201,7 +192,6 @@ class ClipProcessingService:
             # This step downloads AND extracts metadata in one go
             
             ydl_opts_step1 = {
-                **self.base_ydl_opts,
                 'format': 'best[height<=720]',
                 'download_ranges': download_range_func(None, [(startSec, endSec)]),
                 'force_keyframes_at_cuts': True,
@@ -209,6 +199,8 @@ class ClipProcessingService:
                 'merge_output_format': 'mp4',
                 'quiet': True,
                 'overwrites': True,
+                'no_warnings': True,
+                'extract_flat': False,
             }
             
             with yt_dlp.YoutubeDL(ydl_opts_step1) as ydl:
@@ -300,7 +292,8 @@ class ClipProcessingService:
                     check=True, 
                     capture_output=True, 
                     text=True,
-                    timeout=300
+                    timeout=300,
+                    stdin=subprocess.DEVNULL,
                 )
             except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as e:
                 error_msg = f"FFmpeg 480p processing failed: {getattr(e, 'stderr', str(e))}"
@@ -505,7 +498,8 @@ class SpeedEditService:
                 check=True,
                 capture_output=True,
                 text=True,
-                timeout=600  # 10 minute timeout
+                timeout=600,  # 10 minute timeout
+                stdin=subprocess.DEVNULL
             )
             
             # Verify output
@@ -557,4 +551,5 @@ class SpeedEditService:
         except Exception as e:
             logger.warning(f"Failed to get video duration: {str(e)}")
             return 0
+
 

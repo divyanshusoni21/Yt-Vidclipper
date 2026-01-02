@@ -68,13 +68,13 @@ class ClipRequestSerializer(FieldMixin, serializers.ModelSerializer):
             # Check if clip duration is reasonable (not too short or too long)
             clip_duration = endTime - startTime
           
-            if clip_duration < 10:
+            if clip_duration < 5:
                 raise serializers.ValidationError({
                     'endTime': 'Clip duration must be at least 10 second.'
                 })
             
-            # Maximum clip duration of 30 minutes (1800 seconds)
-            if clip_duration > 1800:
+            # Maximum clip duration of 10 minutes (600 seconds)
+            if clip_duration > 600:
                 raise serializers.ValidationError({
                     'endTime': 'Clip duration cannot exceed 30 minutes.'
                 })
