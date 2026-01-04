@@ -6,9 +6,9 @@ istTimezone = pytz.timezone('Asia/Kolkata')
 utcTimezone = pytz.timezone('utc')
 
 
-projectName = 'YT HELPER'
+projectName = 'YT Vidclipper'
 adminEmail = ADMIN_EMAIL
 frontendDomain = FRONTEND_URL
 brevoApiKey = BREVO_API_KEY
 defaultPassword = DEFAULT_PASSWORD
-projectLogo = ""
+projectLogo ="https://i.ibb.co/W4ph4tnj/Screenshot-2026-01-04-at-3-45-21-PM.png"
