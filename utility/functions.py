@@ -1,5 +1,5 @@
 from threading import Thread
-from email_func.brevo_email import Email
+from email_func.email import Email
 
 import csv
 import tempfile
@@ -18,18 +18,21 @@ from django.utils.encoding import smart_str
 from django.utils.http import urlsafe_base64_decode
 from .variables import frontendDomain
 from datetime import datetime
-import random
 import secrets
 import string
 
-def sendMail(body:dict,email:str,subject:str,csvFilePath:list[str] = None ,fileAttachUrl:dict = None,ccMail:list=[],attachFile=None):
+def sendMail(body:dict,email:str,subject:str,csvFilePath:list[str] = None ,fileAttachUrl:dict = None,ccMail:list=[],attachFile=None,fileAttachUrls:list = None):
+    # Convert single fileAttachUrl to list format for backward compatibility
+    if fileAttachUrl is not None and fileAttachUrls is None:
+        fileAttachUrls = [fileAttachUrl]
+    
     data = {'email_body': body, 
             'to_email': email,
             'email_subject': subject,
             "csv_files_paths":csvFilePath,
-            "file_attach_url": fileAttachUrl,
             "cc_mail": ccMail,
-            "attach_file":attachFile
+            "attach_file":attachFile,
+            "file_attach_urls":fileAttachUrls
             }
     t1 = Thread(target=Email.send_email,args=(data,))
     t1.start()
@@ -185,3 +188,11 @@ def create_unique_id(modelClass,lookUpField, uniqueIdIdentifier,length=6):
             break
     return uniqueId
 
+def time_to_seconds(time_str: str) -> int:
+    """Converts a time string of format MM:SS or HH:MM:SS to seconds."""
+    parts = list(map(int, time_str.split(':')))
+    if len(parts) == 2: # MM:SS
+        return parts[0] * 60 + parts[1]
+    elif len(parts) == 3: # HH:MM:SS
+        return parts[0] * 3600 + parts[1] * 60 + parts[2]
+    raise ValueError("Invalid time format. Use MM:SS or HH:MM:SS.")

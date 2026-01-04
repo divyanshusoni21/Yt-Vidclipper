@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'corsheaders',#cors setting
     'django_extensions',
+    'django_rq',
 
     "storages"
 ]
@@ -85,7 +86,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'yt_helper.wsgi.application'
-
+AUTH_USER_MODEL = 'home.User'
 
 # Database
 # https://docs.djangoproject.com/en/4.0/ref/settings/#databases
@@ -189,6 +190,7 @@ ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL","divyanshusoni.relish@gmail.com")
 ADMIN_PHONE = os.environ.get("ADMIN_PHONE","")
 FRONTEND_URL = os.environ.get("FRONTEND_URL","http://localhost:3000")
 BREVO_API_KEY = os.environ.get("BREVO_API_KEY","")
+DEFAULT_PASSWORD = os.environ.get("DEFAULT_PASSWORD")
 
 
 REST_FRAMEWORK = {
@@ -210,28 +212,6 @@ SIMPLE_JWT = {
 
 FILE_UPLOAD_MAX_MEMORY_SIZE = 20 * 1024 * 1024 # 20 Mb limit
 
-# # aws s3 settings
-# AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID')
-# AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY')
-# AWS_STORAGE_BUCKET_NAME = os.environ.get('AWS_STORAGE_BUCKET_NAME')
-# AWS_S3_ADDRESSING_STYLE = os.environ.get('AWS_S3_ADDRESSING_STYLE')
-# AWS_S3_REGION_NAME = os.environ.get('AWS_S3_REGION_NAME')
-# AWS_S3_SIGNATURE_VERSION = os.environ.get('AWS_S3_SIGNATURE_VERSION')
-# AWS_S3_FILE_OVERWRITE = os.environ.get('AWS_S3_FILE_OVERWRITE')
-# AWS_DEFAULT_ACL = os.environ.get('AWS_DEFAULT_ACL')
-
-
-# STORAGES = {
-#    "default": {
-#        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
-#        "OPTIONS": {
-#            "location": "",
-#        },
-#    },
-#     "staticfiles": {
-#        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",  # This uses the default storage backend for static files
-#    },
-# }
 
 
 
@@ -282,3 +262,47 @@ LOGGING = {
 }  
 import logging 
 logger = logging.getLogger('django')
+
+# Redis and Django-RQ Configuration
+REDIS_HOST = os.environ.get('REDIS_HOST', 'localhost')
+REDIS_PORT = os.environ.get('REDIS_PORT', 6379)
+REDIS_DB = os.environ.get('REDIS_DB', 0)
+
+RQ_QUEUES = {
+    'default': {
+        'HOST': REDIS_HOST,
+        'PORT': REDIS_PORT,
+        'DB': REDIS_DB,
+        'DEFAULT_TIMEOUT': 360,
+    },
+    'high': {
+        'HOST': REDIS_HOST,
+        'PORT': REDIS_PORT,
+        'DB': REDIS_DB,
+        'DEFAULT_TIMEOUT': 500,
+    },
+    'low': {
+        'HOST': REDIS_HOST,
+        'PORT': REDIS_PORT,
+        'DB': REDIS_DB,
+        'DEFAULT_TIMEOUT': 1000,
+    }
+}
+
+# File handling configuration for YouTube clipper
+CLIP_STORAGE_ROOT = os.path.join(MEDIA_ROOT, 'clips')
+TEMP_STORAGE_ROOT = os.path.join(MEDIA_ROOT, 'temp')
+
+# Ensure clip storage directories exist
+if not os.path.exists(CLIP_STORAGE_ROOT):
+    os.makedirs(CLIP_STORAGE_ROOT)
+    
+if not os.path.exists(TEMP_STORAGE_ROOT):
+    os.makedirs(TEMP_STORAGE_ROOT)
+
+# Maximum file size for clips (in bytes) - 500MB
+MAX_CLIP_FILE_SIZE = 500 * 1024 * 1024
+
+# Cleanup settings
+CLIP_RETENTION_HOURS = int(os.environ.get('CLIP_RETENTION_HOURS', 24))  # Keep clips for 24 hours by default
+TEMP_FILE_RETENTION_HOURS = int(os.environ.get('TEMP_FILE_RETENTION_HOURS', 1))  # Keep temp files for 1 hour
