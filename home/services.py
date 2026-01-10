@@ -200,6 +200,7 @@ class ClipProcessingService:
                 'overwrites': True,
                 'no_warnings': True,
                 'extract_flat': False,
+                'force_ipv6': True,
                  #  Disable Cache (Be a "new" user every time)
                 'cachedir': False,
                 
