@@ -191,6 +191,7 @@ ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL","divyanshusoni.relish@gmail.com")
 ADMIN_PHONE = os.environ.get("ADMIN_PHONE","")
 FRONTEND_URL = os.environ.get("FRONTEND_URL","http://localhost:3000")
 BREVO_API_KEY = os.environ.get("BREVO_API_KEY","")
+RAPIDAPI_KEY = os.environ.get("RAPIDAPI_KEY","")
 DEFAULT_PASSWORD = os.environ.get("DEFAULT_PASSWORD")
 
 
