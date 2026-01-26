@@ -164,7 +164,10 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 CSRF_TRUSTED_ORIGINS = os.environ.get('CSRF_TRUSTED_ORIGINS', ['http://127.1.1:8000']).split(',')
 
 #cors setting
-CORS_ORIGIN_ALLOW_ALL = True
+
+CORS_ALLOWED_ORIGINS = os.environ.get('CORS_ALLOWED_ORIGINS', []).split(',')
+
+
 CORS_ALLOW_HEADERS = [
     'accept',
     'accept-encoding',
@@ -177,6 +180,16 @@ CORS_ALLOW_HEADERS = [
     'x-requested-with',
 ]
 
+
+# Allow credentials (cookies, authorization headers)
+CORS_ALLOW_CREDENTIALS = True
+
+# Expose headers (important for file downloads)
+CORS_EXPOSE_HEADERS = [
+    'Content-Disposition',
+    'Content-Type',
+    'Content-Length',
+]
 
 # email settings
 EMAIL_USE_TLS = True
