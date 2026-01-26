@@ -31,9 +31,8 @@ SECRET_KEY = os.environ.get("SECRET_KEY", "")
 DEBUG = os.environ.get("DEBUG", False)
 
 
-ALLOWED_HOSTS = ["127.0.0.1","64.227.185.227","64.227.185.227.nip.io"]
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', []).split(',')
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-
 
 # Application definition
 
@@ -160,6 +159,9 @@ MEDIA_URL = '/media/'
 # https://docs.djangoproject.com/en/4.0/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+CSRF_TRUSTED_ORIGINS = os.environ.get('CSRF_TRUSTED_ORIGINS', ['http://127.1.1:8000']).split(',')
 
 #cors setting
 CORS_ORIGIN_ALLOW_ALL = True
