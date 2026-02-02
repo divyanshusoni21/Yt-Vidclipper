@@ -345,8 +345,6 @@ class SpeedEditViewSet(viewsets.ModelViewSet):
                 if not sourceClip:
                     raise Exception(f'Clip not found : {sourceClip}')
 
-
-
             requestData = request.data.copy()
             requestData["is_active"] = True
             # Create the speed edit request
@@ -360,6 +358,14 @@ class SpeedEditViewSet(viewsets.ModelViewSet):
             if request.user.is_authenticated:
                 speedEditRequest.user = request.user
                 speedEditRequest.save(update_fields=['user'])
+
+            # Get source video path
+            sourcePath = speedEditRequest.get_source_path()
+
+            # Get original file info
+            originalSizeBytes = os.path.getsize(sourcePath)
+            speedEditRequest.original_size = round(originalSizeBytes / (1024 * 1024), 2)
+            speedEditRequest.save(update_fields=['original_size'])
             
             # Process in background thread
             speedEditService = SpeedEditService()

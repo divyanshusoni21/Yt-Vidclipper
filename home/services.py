@@ -223,7 +223,7 @@ class ClipProcessingService:
             '-map', '1:a',            
             '-c:v', 'libx264',        
             '-preset', 'superfast',   # more the faster more the size of clip, options : ultrafast,superfast, fast, medium, slow, veryslow
-            '-crf', '18',             
+            '-crf', '23',             
             '-c:a', 'aac',            
             out720pPathAbsolute,
             
@@ -232,7 +232,7 @@ class ClipProcessingService:
             '-map', '1:a',            
             '-c:v', 'libx264',
             '-preset', 'superfast',   # more the faster more the size of clip, options : ultrafast,superfast, fast, medium, slow, veryslow
-            '-crf', '23',             
+            '-crf', '28',             
             '-c:a', 'aac',
             out480pPathAbsolute
         ]
@@ -529,14 +529,10 @@ class SpeedEditService:
             if not sourcePath or not os.path.exists(sourcePath):
                 raise ProcessingFailedException("Source video not found")
             
-            # Get original file info
-            originalSizeBytes = os.path.getsize(sourcePath)
-            speedEditRequest.original_size = round(originalSizeBytes / (1024 * 1024), 2)
-            
             # Get original duration using ffprobe
             originalDuration = self._get_video_duration(sourcePath)
             speedEditRequest.original_duration = originalDuration
-            speedEditRequest.save(update_fields=['original_size', 'original_duration'])
+            speedEditRequest.save(update_fields=[ 'original_duration'])
             
             # Create output directory
             outputDir = os.path.join(settings.MEDIA_ROOT, 'speed_edited_videos', str(speedEditRequest.id))
@@ -576,7 +572,7 @@ class SpeedEditService:
                 '-filter_complex', f'[0:v]{videoFilter}[v];[0:a]{audioFilterChain}[a]',
                 '-map', '[v]',
                 '-map', '[a]',
-                '-c:v', 'libx264', '-preset', 'fast', '-crf', '23',
+                '-c:v', 'libx264', '-preset', 'superfast', '-crf', '23',
                 '-c:a', 'aac',
                 '-y',
                 outputPath
