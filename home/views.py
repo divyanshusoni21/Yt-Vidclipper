@@ -137,7 +137,7 @@ class ClipRequestViewSet(viewsets.ModelViewSet):
             if not clipRequestId:
                 raise Exception('clip_request_id  is required')
             
-            clipRequest = ClipRequest.objects.get(id=clipRequestId)
+            clipRequest = ClipRequest.objects.filter(id=clipRequestId).first()
             if not clipRequest:
                 raise Exception(f"Clip request not found: {clipRequestId}")
 

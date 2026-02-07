@@ -1,5 +1,5 @@
 from threading import Thread
-from email_func.email import Email
+from email_func.brevo_email import Email
 
 import csv
 import tempfile
