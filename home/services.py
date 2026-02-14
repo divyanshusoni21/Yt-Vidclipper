@@ -325,6 +325,11 @@ class ClipProcessingService:
                 videoUrl = info['url']
                 audioUrl = info['url']
             
+            videoDuration = info.get('duration', None)
+            if videoDuration is not None and startSec > videoDuration:
+                # raise error if start time is beyond video duration
+                raise ProcessingFailedException("Start time cannot be beyond video duration.")
+            
             self.save_video_info(info, clipRequest, clipDurationSeconds, endSec)
 
         if not videoUrl or not audioUrl:
@@ -577,8 +582,6 @@ class SpeedEditService:
                 '-y',
                 outputPath
             ]
-            
-            logger.info(f"Running FFmpeg command: {' '.join(ffmpegCmd)}")
             
             # Execute FFmpeg
             subprocess.run(

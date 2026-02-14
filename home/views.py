@@ -154,7 +154,7 @@ class ClipRequestViewSet(viewsets.ModelViewSet):
                     user = User.objects.filter(email__iexact=email).first()
                     
                     if not user:
-                        # Create user without password
+                        # Create user with default password
                         user = User(
                             username=email.split('@')[0],
                             email=email,
