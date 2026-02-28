@@ -4,7 +4,7 @@
 [![Frontend Repo](https://img.shields.io/badge/Frontend-Repository-blue.svg)](https://github.com/divyanshusoni21/Yt-vidclipper-fe)
 [![Backend Repo](https://img.shields.io/badge/Backend-Repository-blue.svg)](https://github.com/divyanshusoni21/Yt-Vidclipper-be)
 
-> **Quickly generate, edit, and download short clips from any YouTube video.**
+> **Quickly generate, edit, and download short clips from any public YouTube video.**
 
 <img width="2532" height="1284" alt="image" src="https://github.com/user-attachments/assets/6380ee4c-a262-40c5-a9a0-04ee7495bfaa" />
 
